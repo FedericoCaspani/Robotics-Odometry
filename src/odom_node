@@ -1,0 +1,128 @@
+#include "ros/ros.h"
+#include <math.h>
+#include <time.h>
+#include "std_msgs/String.h"
+#include "first_project/Odom.h"
+#include "nav_msgs/Odometry.h"
+#include <tf2_ros/transform_broadcaster.h>
+#include "first_project/Reset.h"
+#include <sstream>
+
+#define d 2.8
+
+class odomNode{
+
+private:
+ros::NodeHandle n;
+ros::Subscriber sub;
+ros::Publisher pub;
+ros::Publisher customPub;
+tf::TransformBroadcaster br;
+ros::ServiceServer resetter;
+
+double starting_x;
+double starting_y;
+double starting_th;
+ros::Time last_time; //da valutare
+
+nav_msgs::Odometry navMsg;
+first_project::Odom custMsg;
+
+
+
+public:
+        odomNode(){
+	last_time = ros::Time::now();
+        sub = n.subscribe("/speed_steer", 1000, &odomNode::calculateOdometry, this);  //vedere come fare subscribe di un tf
+        pub = n.advertise<nav_msgs::Odometry>("/odometry", 1000);
+        customPub = n.advertise<first_project::Odom>("/custom_odometry", 1000);
+       	resetter = n.advertiseService("reset", &odomNode::reset, this);
+}
+
+void calculateOdometry(const geometry_msgs::Quaternion& msg){
+	ROS_INFO("Calculating Odometry");
+	ROS_INFO("starting_x: %f, starting_y: %f, starting_th: %f", starting_x, starting_y, starting_th);
+
+	double v = msg.x;
+	double alpha = msg.y;
+
+	ROS_INFO("v: %f, alpha: %f", v, alpha);
+
+	double omega = v * (tan(alpha) / d);
+
+	ROS_INFO("omega: %f", omega); 
+
+	ros::Time current_time = ros::Time::now();
+	ros::Duration delta_time_temp = (current_time - last_time);
+	double delta_time = delta_time_temp.toSec();
+
+	ROS_INFO("current time: %f, last time: %f", current_time, last_time);
+	ROS_INFO("delta_time: %f", delta_time);
+
+	double th = starting_th + omega * delta_time;
+	//double x = starting_x + (v / omega) * (sin(th) - sin(starting_th));
+	//double y = starting_y - (v / omega) * (cos(th) - cos(starting_th));
+	double x = starting_x + v * delta_time * cos(th + (omega * delta_time) / 2);
+	double y = starting_y + v * delta_time * sin(th + (omega * delta_time) / 2);
+
+	ROS_INFO("x: %f, y: %f, th: %f", x, y, th);
+
+	custMsg.x = x;
+	custMsg.y = y;
+	custMsg.th = th;
+	custMsg.timestamp = std::to_string(current_time);   //vedere come lo salva
+
+	//since all odometry is 6DOF we'll need a quaternion created from yaw
+	geometry_msgs::Quaternion odom_quat = tf::createQuaternionMsgFromYaw(th);
+
+	navMsg.header.stamp = current_time;
+	navMsg.pose.pose.position.x = x;
+	navMsg.pose.pose.position.y = y;
+	navMsg.pose.pose.position.z = 0.0;
+	navMsg.pose.pose.orientation = odom_quat;
+
+	//set the velocity
+	navMsg.child_frame_id = "base_link";    //TODO: controllare
+	navMsg.twist.twist.linear.x = v * cos(th);
+	navMsg.twist.twist.linear.y = v * sin(th);
+	navMsg.twist.twist.angular.z = omega;
+
+	starting_x = x;
+	starting_y = y;
+	starting_th = th;
+	last_time = current_time;
+
+	pub.publish(navMsg);
+	customPub.publish(custMsg);
+	ROS_INFO("sended");
+
+	//tf publisher
+	tf::Transform transform;
+
+	transform.setOrigin( tf::Vector3(x, y, 0) );
+	tf::Quaternion q;
+	q.setRPY(0, 0, th);
+	transform.setRotation(q);
+	br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "odom", "base_link"));  //TODO: controllare "base_link"
+}
+
+bool reset(first_project::Reset::Request &req, first_project::Reset::Response &res){
+	starting_x = 0.0;
+	starting_y = 0.0;
+	starting_th = 0.0;
+
+	ROS_INFO("odometry resetted");
+
+	return true;
+}
+
+};
+
+int main(int argc, char **argv)
+{
+        ros::init(argc, argv, "odom_node");
+	ROS_INFO("node started");
+        odomNode odomNode;
+        ros::spin();
+        return 0;
+}
