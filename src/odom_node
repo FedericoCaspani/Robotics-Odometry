@@ -8,8 +8,6 @@
 #include "first_project/Reset.h"
 #include <sstream>
 
-#define d 2.8
-
 class odomNode{
 
 private:
@@ -26,6 +24,7 @@ double starting_th;
 double last_x = starting_x;
 double last_y = starting_y;
 double last_th = starting_th;
+double d = 2.8;
 ros::Time last_time; //da valutare
 
 
@@ -63,12 +62,12 @@ void calculateOdometry(const geometry_msgs::Quaternion& msg){
 
 		w = v * (tan(alpha) / d);
 
-		ROS_INFO("omega: %f", w);
+		ROS_INFO("omega: %lf", w);
 
 		ros::Duration delta_time_temp = (current_time - last_time);
 		delta_time = delta_time_temp.toSec();
 
-		ROS_INFO("current time: %lf, last time: %lf", current_time, last_time);
+		ROS_INFO("current time: %lf, last time: %lf", current_time.toSec(), last_time.toSec());
 		ROS_INFO("delta_time: %lf", delta_time);
 
 		double th = last_th + w * delta_time;
@@ -119,7 +118,7 @@ void publishOdometry(double x, double y, double v, double w, double th, ros::Tim
         odometry.pose.pose.position.z = 0.0;
         odometry.pose.pose.orientation = odometryQuaternion;
         //set velocity
-        odometry.child_frame_id = "baseLink";
+        odometry.child_frame_id = "base_link";
         odometry.twist.twist.linear.x = v * cos(th);
         odometry.twist.twist.linear.y = v * sin(th);
         odometry.twist.twist.angular.z = w;
@@ -146,8 +145,9 @@ bool reset(first_project::Reset::Request &req, first_project::Reset::Response &r
 	last_x = 0.0;
 	last_y = 0.0;
 	last_th = 0.0;
-
-	ROS_INFO("odometry resetted");
+	
+	res.resetted =true;
+	ROS_INFO("sending back response: [%B]", res.resetted);
 
 	return true;
 }
