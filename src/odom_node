@@ -34,7 +34,7 @@ public:
         sub = n.subscribe("/speed_steer", 1000, &odomNode::calculateOdometry, this);
         pub = n.advertise<nav_msgs::Odometry>("/odometry", 1000);
         customPub = n.advertise<first_project::Odom>("/custom_odometry", 1000);
-        resetter = n.advertiseService("reset", &odomNode::reset, this);
+        resetter = n.advertiseService("reset_odom", &odomNode::reset, this);
 
 	      n.getParam("/starting_x", starting_x);
         n.getParam("/starting_y", starting_y);
