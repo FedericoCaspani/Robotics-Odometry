@@ -25,21 +25,23 @@ double last_x = starting_x;
 double last_y = starting_y;
 double last_th = starting_th;
 double d = 2.8;
-ros::Time last_time; //da valutare
+ros::Time last_time;
 
 
 public:
-        odomNode(){
+  odomNode(){
 	last_time = ros::Time::now();
         sub = n.subscribe("/speed_steer", 1000, &odomNode::calculateOdometry, this);
         pub = n.advertise<nav_msgs::Odometry>("/odometry", 1000);
         customPub = n.advertise<first_project::Odom>("/custom_odometry", 1000);
         resetter = n.advertiseService("reset", &odomNode::reset, this);
 
-	n.getParam("/starting_x", starting_x);
+	      n.getParam("/starting_x", starting_x);
         n.getParam("/starting_y", starting_y);
         n.getParam("/starting_th", starting_th);
 }
+
+//Compute odometry
 
 void calculateOdometry(const geometry_msgs::Quaternion& msg){
 	double v, alpha, delta_time, w;
@@ -77,10 +79,10 @@ void calculateOdometry(const geometry_msgs::Quaternion& msg){
 		double y = last_y + v * delta_time * sin(th + (w * delta_time) / 2);
 
 		ROS_INFO("x: %f, y: %f, th: %f", x, y, th);
-		
+
 		publishCustomOdometry(x, y, th, current_time);
 		publishOdometry(x, y, v, w, th, current_time);
-		
+
 		publishTf(x, y, th, current_time);
 
 		last_x = x;
@@ -91,10 +93,11 @@ void calculateOdometry(const geometry_msgs::Quaternion& msg){
 		ROS_INFO("\n\n\n");
 	}
 }
+// Publish odometry
 
 void publishCustomOdometry(double x, double y, double th, ros::Time currentTime){
 	first_project::Odom custMsg;
-	
+
 	custMsg.x = x;
 	custMsg.y = y;
 	custMsg.th = th;
@@ -102,7 +105,7 @@ void publishCustomOdometry(double x, double y, double th, ros::Time currentTime)
 
 	customPub.publish(custMsg);
 	ROS_INFO("custom odometry published");
-	
+
 }
 
 void publishOdometry(double x, double y, double v, double w, double th, ros::Time currentTime){
@@ -128,26 +131,29 @@ void publishOdometry(double x, double y, double v, double w, double th, ros::Tim
         pub.publish(odometry);
         ROS_INFO("standard odometry published");
 }
+//Tf
 
-void publishTf(double x, double y, double th, ros::Time currentTime){	
+void publishTf(double x, double y, double th, ros::Time currentTime){
 	tf::Transform transform;
 
 	transform.setOrigin( tf::Vector3(x, y, 0) );
 	tf::Quaternion q;
 	q.setRPY(0, 0, th);
 	transform.setRotation(q);
-	br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "odom", "base_link"));  //TODO: controllare "base_link"
-	
+	br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "odom", "base_link"));
+
 	ROS_INFO("tf published");
 }
+
+// Compute the reset
 
 bool reset(first_project::Reset::Request &req, first_project::Reset::Response &res){
 	last_x = 0.0;
 	last_y = 0.0;
 	last_th = 0.0;
-	
+
 	res.resetted =true;
-	ROS_INFO("sending back response: [%B]", res.resetted);
+	ROS_INFO("Odometry resetted");
 
 	return true;
 }
@@ -158,7 +164,9 @@ int main(int argc, char **argv)
 {
 	ros::init(argc, argv, "odom_node");
 	ROS_INFO("node started");
-	odomNode odomNode;
-	ros::spin();
+
+  odomNode odomNode;
+
+  ros::spin();
 	return 0;
 }
